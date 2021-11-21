@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
+using PlatformService.AsyncDataServices;
 using PlatformService.Data;
 using PlatformService.Dtos;
 using PlatformService.Models;
@@ -15,12 +16,14 @@ namespace PlatformService.Controllers
         private readonly IMapper _mapper;
         private readonly IPlatformRepository _platformRepo;
         private readonly ICommandDataClient _cmdClient;
+        private readonly IMessageBusClient _msgBusClient;
 
-        public PlatformsController(IMapper mapper, IPlatformRepository platformRepo, ICommandDataClient cmdClient)
+        public PlatformsController(IMapper mapper, IPlatformRepository platformRepo, ICommandDataClient cmdClient, IMessageBusClient msgBusClient)
         {
             _mapper = mapper;
             _platformRepo = platformRepo;
             _cmdClient = cmdClient;
+            _msgBusClient = msgBusClient;
         }
 
         [HttpGet]
@@ -48,15 +51,31 @@ namespace PlatformService.Controllers
 
             var platform = _mapper.Map<Platform>(model);
             _platformRepo.Add(platform);
+            _platformRepo.SaveChanges();
 
             var record = _mapper.Map<PlatformRecord>(platform);
+
+            // Send message synchronously
             try
             {
-                 await _cmdClient.SendPlatformToCommand(record);
+                await _cmdClient.SendPlatformToCommand(record);
             }
             catch (System.Exception ex)
             {
                 Console.WriteLine($"--> Could not send synchronously: {ex.Message}");
+            }
+
+            // Send message asynchronously
+            try
+            {
+                var message = _mapper.Map<PlatformPublishedMessage>(record);
+                message.Event = "Platform_Published";
+
+                _msgBusClient.PublishNewPlatform(message);
+            }
+            catch (System.Exception ex)
+            {
+                Console.WriteLine($"--> Could not send asynchronously: {ex.Message}");
             }
 
             return CreatedAtRoute("GetPlatformById", new {record.Id}, record);

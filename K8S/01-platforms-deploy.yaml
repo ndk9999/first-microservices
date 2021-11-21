@@ -16,7 +16,7 @@ spec:
         - name: platformservice
           image: ndk9999/first-microservices-platformservice:latest
 ---
-apiVersion: apps/v1
+apiVersion: v1
 kind: Service
 metadata:
   name: platforms-clusterip-srv
@@ -29,3 +29,7 @@ spec:
     protocol: TCP
     port: 80
     targetPort: 80
+  - name: platformgrpc
+    protocol: TCP
+    port: 666
+    targetPort: 666
